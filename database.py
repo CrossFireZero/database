@@ -13,49 +13,63 @@ class Products():
         self.dct = {}
         for tpl in params:
             if tpl[3] not in self.dct.keys():
-                self.dct[tpl[3]] = {}    
+                self.dct[tpl[3]] = {}
             if tpl[2] not in self.dct[tpl[3]].keys():
                 self.dct[tpl[3]][tpl[2]] = []
             self.dct[tpl[3]][tpl[2]].append(tpl[1])
 
-    def get_str(self):
+    def get_products(self):
         """Возвращает список изделий"""
 
-        return set(self.dct.keys())
+        return list(self.dct.keys())
 
     def get_blocks(self, key):
         """Возвращает список блоков"""
 
-        return set(self.dct[key].keys())
-    
+        return list(self.dct[key].keys())
+
     def get_sblocks(self, pkey, bkey):
         """Возвращает список подблоков"""
-        return self.dct[tpl[3]][tpl[2]][:]
 
-class Block():
-    """Хранит данные об одном блоке из таблицы blocks"""
-
-    def __init__(self, params):
-        self.block_id = params[0]
-        self.p_id = params[1]
-        self.name = params[2]
-        self.comment = params[3]
-
-    def get_str(self):
-        """Возвращает данные о блоке"""
-
-        return (str(self.block_id) + '\t' + str(self.name) + '\t'
-                + str(self.comment))
+        return self.dct[pkey][bkey][:]
 
 
 class Printer():
-    """Хранит список со списком строк для каждой таблицы,
-       используется для отрисовки данных"""
+    """Формирует список строк для отображения"""
 
-    def __init__(self):
-        self.tables = []
-        self.current_table = 0
+    def __init__(self, prod):
+        self.data = prod
+        self.pkey = ''
+        self.bkey = ''
+        self.position = 0
+        self.current_str = 0
 
+
+    def move_position(self, step):
+        """Меняет текущую позицию"""
+
+        self.position += step
+        if self.position < 0:
+            self.position = 0
+        elif self.position > 2:
+            self.position = 2
+
+        if self.position == 1:
+            self.pkey = self.data.get_products()[self.current_str]
+        elif self.position == 2:
+            self.bkey = self.data.get_blocks(self.pkey)[self.current_str]
+        self.current_str = 0
+    def move_current_str(self, step):
+        self.current_str += step
+
+    def get_data(self):
+
+        if self.position == 0:
+            return self.data.get_products()
+        elif self.position == 1:
+            return self.data.get_blocks(self.pkey)
+        elif self.position == 2:
+            return self.data.get_sblocks(self.pkey, self.bkey)
 
 
 def select(cur, from_, select='*', where=''):
@@ -78,9 +92,6 @@ def select(cur, from_, select='*', where=''):
 def draw_menu(stdscr, connection_status, user, cur):
     """Отрисовка"""
 
-    # Класс для хранения и отрисовки таблиц
-    printer = Printer()
-
     # Current key
     k = 0
 
@@ -100,7 +111,7 @@ def draw_menu(stdscr, connection_status, user, cur):
 
     # Get data from Products table (where="param='x'" need '' for string params)
     # rows = [Product(value) for value in select(cur, 'products')]
-    products = Products(select(cur, 'ownersSPO'))
+    printer = Printer(Products(select(cur, 'ownersSPO')))
 
     # Таблица с индексом 0 добавляется в хранилище экземпляра класса Printer
     # printer.tables.append(rows)
@@ -123,15 +134,14 @@ def draw_menu(stdscr, connection_status, user, cur):
 
         if k == curses.KEY_DOWN:
             cursor_y = cursor_y + 2
+            printer.move_current_str(1)
         elif k == curses.KEY_UP:
             cursor_y = cursor_y - 2
+            printer.move_current_str(-1)
         elif k == curses.KEY_LEFT:
-            products = [Product(value) for value in select(cur, 'products')]
+            printer.move_position(-1)
         elif k == curses.KEY_RIGHT:
-            # Определить номер экземпляра product
-            products = [Block(value) for value in select(cur, 'blocks',
-                        where="p_id = " + str(products[(cursor_y-5)//2].p_id))]
-
+            printer.move_position(1)
         # Cursor border
         # cursor_x = max(0, cursor_x)
         # cursor_x = min(width-1, cursor_x)
@@ -142,7 +152,7 @@ def draw_menu(stdscr, connection_status, user, cur):
 
 
         # Declaration of strings
-        title = "ТУТ БУДЕТ ЗАГОЛОВОК"[:width-1]
+        # title = "ТУТ БУДЕТ ЗАГОЛОВОК"[:width-1]
         # subtitle = "Written by Clay McLeod"[:width-1]
         # keystr = "Last key pressed: {}".format(k)[:width-1]
         # statusbarstr = "Press 'Esc' to exit | STATUS BAR | Pos: {}, {}".format(cursor_x, cursor_y)
@@ -152,7 +162,7 @@ def draw_menu(stdscr, connection_status, user, cur):
         #     keystr = "No key press detected..."[:width-1]
 
         # Centering calculations
-        start_x_title = int((width // 2) - (len(title) // 2) - len(title) % 2)
+        # start_x_title = int((width // 2) - (len(title) // 2) - len(title) % 2)
         # start_x_subtitle = int((width // 2) - (len(subtitle) // 2) - len(subtitle) % 2)
         # start_x_keystr = int((width // 2) - (len(keystr) // 2) - len(keystr) % 2)
         # start_y = int((height // 2) - 2)
@@ -162,13 +172,12 @@ def draw_menu(stdscr, connection_status, user, cur):
         # stdscr.addstr(0, 0, whstr, curses.color_pair(1))
 
         # отрисовка текущей таблицы
-        for key in products.get_str():
-            stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + str(key))
+        for str in printer.get_data():
+            stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + str)
             offset_y += 2
         # for line in printer.tables[printer.current_table]:
         #     stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + line.get_str())
         #     offset_y += 2
-
         # for product in products:
         #     stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' +
         #                     product.get_str())
@@ -194,7 +203,7 @@ def draw_menu(stdscr, connection_status, user, cur):
         # stdscr.attron(curses.A_BOLD)
 
         # Rendering title
-        stdscr.addstr(0, start_x_title, title)
+        # stdscr.addstr(0, start_x_title, title)
 
         # Turning off attributes for title
         # stdscr.attroff(curses.color_pair(2))
