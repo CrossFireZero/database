@@ -18,10 +18,6 @@ class Products():
                 self.dct[tpl[3]][tpl[2]] = []
             self.dct[tpl[3]][tpl[2]].append(tpl[1])
 
-        print(self.dct)
-        input()
-        exit()
-
     def get_str(self):
         """Возвращает список изделий"""
 
