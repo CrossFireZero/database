@@ -7,16 +7,20 @@ import psycopg2
 
 
 class Products():
-    """Хранит данные об изделиях"""
+    """Хранит данные об изделиях, блока и подблоках"""
 
     def __init__(self, params):
         self.dct = {}
         for tpl in params:
-            self.dct[tpl[3]] = {}
-        for tpl in params:
-            self.dct[tpl[3]][tpl[2]] = []
-        for tpl in params:
+            if tpl[3] not in self.dct.keys():
+                self.dct[tpl[3]] = {}    
+            if tpl[2] not in self.dct[tpl[3]].keys():
+                self.dct[tpl[3]][tpl[2]] = []
             self.dct[tpl[3]][tpl[2]].append(tpl[1])
+
+        print(self.dct)
+        input()
+        exit()
 
     def get_str(self):
         """Возвращает список изделий"""
@@ -27,6 +31,10 @@ class Products():
         """Возвращает список блоков"""
 
         return set(self.dct[key].keys())
+    
+    def get_sblocks(self, pkey, bkey):
+        """Возвращает список подблоков"""
+        return self.dct[tpl[3]][tpl[2]][:]
 
 class Block():
     """Хранит данные об одном блоке из таблицы blocks"""
