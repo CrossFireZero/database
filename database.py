@@ -54,7 +54,7 @@ class Printer():
         self.position += step
         if self.position < 0:
             self.position = 0
-        elif self.position > 3:
+        elif self.position > 4:
             self.position = 0
 
         if self.position == 1 and key:
@@ -63,10 +63,11 @@ class Printer():
             self.bkey = key
         elif self.position == 3 and key:
             self.sbkey = key
-        self.current_str = 0
+
 
     def move_current_str(self, step):
         self.current_str += step
+
 
     def get_data(self):
 
@@ -75,11 +76,27 @@ class Printer():
         elif self.position == 1:
             return self.data.get_blocks(self.pkey)
         elif self.position == 2:
+            self.current_str = 0
             return self.data.get_sblocks(self.pkey, self.bkey)
         elif self.position == 3:
-            request = "SELECT log.date, to_char(log.time, 'HH24:MM:SS'), spo.ksum, spo.comment, spo.is_official FROM spoquerylog AS log JOIN spo ON log.spo_id=spo.id WHERE log.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "');"
+            return ['Текущая прошивка блока', 'Добавить СПО в базу', 'Журнал запросов СПО', 'Каталог СПО блока']
+        elif self.position == 4 and self.current_str == 0:
+            request = "SELECT log.date, to_char(log.time, 'HH24:MM:SS'), spo.ksum, spo.comment, spo.is_official FROM spoquerylog AS log JOIN spo ON log.spo_id=spo.id WHERE log.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "') ORDER BY log.id DESC LIMIT 1;"
             self.cur.execute(request)
-            return list(" ".join(str(item) for item in line) for line in self.cur.fetchall())
+            self.current_str = 0
+            return list(" | ".join(str(item) for item in line) for line in self.cur.fetchall())
+        elif self.position == 4 and self.current_str == 2:
+            request = "SELECT log.date, to_char(log.time, 'HH24:MM:SS'), spo.ksum, spo.comment, spo.is_official FROM spoquerylog AS log JOIN spo ON log.spo_id=spo.id WHERE log.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "') ORDER BY log.id DESC;"
+            self.cur.execute(request)
+            self.current_str = 0
+            return list(" | ".join(str(item) for item in line) for line in self.cur.fetchall())
+        elif self.position == 4 and self.current_str == 3:
+            request = "SELECT spo.date, spo.ksum, spo.md5, spo.comment, spo.is_official FROM spo WHERE spo.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "') ORDER BY spo.id DESC;"
+            self.cur.execute(request)
+            self.current_str = 0
+            return list(" | ".join(str(item) for item in line) for line in self.cur.fetchall())
+
+        return []
 
 def select(cur, from_, select='*', where=''):
     """Запрос данных из таблицы"""
@@ -151,8 +168,10 @@ def draw_menu(stdscr, connection_status, user, cur):
             cursor_y = cursor_y - 2
             printer.move_current_str(-1)
         elif k == curses.KEY_LEFT:
+            cursor_y = 5
             printer.move_position(-1)
         elif k == curses.KEY_RIGHT:
+            cursor_y = 5
             printer.move_position(1, current_str)
         # Cursor border
         # cursor_x = max(0, cursor_x)
