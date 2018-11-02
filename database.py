@@ -1,3 +1,4 @@
+import os
 # Interface
 import curses
 # FTP
@@ -37,12 +38,14 @@ class Products():
 class Printer():
     """Формирует список строк для отображения"""
 
-    def __init__(self, prod):
+    def __init__(self, prod, cur):
         self.data = prod
         self.pkey = ''
         self.bkey = ''
+        self.sbkey =''
         self.position = 0
         self.current_str = 0
+        self.cur = cur
 
 
     def move_position(self, step, key=''):
@@ -51,13 +54,15 @@ class Printer():
         self.position += step
         if self.position < 0:
             self.position = 0
-        elif self.position > 2:
+        elif self.position > 3:
             self.position = 0
 
         if self.position == 1 and key:
             self.pkey = key
         elif self.position == 2 and key:
             self.bkey = key
+        elif self.position == 3 and key:
+            self.sbkey = key
         self.current_str = 0
 
     def move_current_str(self, step):
@@ -71,7 +76,10 @@ class Printer():
             return self.data.get_blocks(self.pkey)
         elif self.position == 2:
             return self.data.get_sblocks(self.pkey, self.bkey)
-
+        elif self.position == 3:
+            request = "SELECT log.date, to_char(log.time, 'HH24:MM:SS'), spo.ksum, spo.comment, spo.is_official FROM spoquerylog AS log JOIN spo ON log.spo_id=spo.id WHERE log.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "');"
+            self.cur.execute(request)
+            return list(" ".join(str(item) for item in line) for line in self.cur.fetchall())
 
 def select(cur, from_, select='*', where=''):
     """Запрос данных из таблицы"""
@@ -112,7 +120,7 @@ def draw_menu(stdscr, connection_status, user, cur):
 
     # Get data from Products table (where="param='x'" need '' for string params)
     # rows = [Product(value) for value in select(cur, 'products')]
-    printer = Printer(Products(select(cur, 'ownersSPO')))
+    printer = Printer(Products(select(cur, 'ownersSPO')), cur)
 
     # Таблица с индексом 0 добавляется в хранилище экземпляра класса Printer
     # printer.tables.append(rows)
@@ -176,9 +184,14 @@ def draw_menu(stdscr, connection_status, user, cur):
         # stdscr.addstr(0, 0, whstr, curses.color_pair(1))
 
         # отрисовка текущей таблицы
-        for string in printer.get_data():
-            stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + string)
-            offset_y += 2
+        data = printer.get_data()
+        if len(data):
+            for line in data:
+                stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + line)
+                offset_y += 2
+        else:
+                stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + 'Нет данных')
+                offset_y += 2
         # for line in printer.tables[printer.current_table]:
         #     stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + line.get_str())
         #     offset_y += 2
@@ -235,6 +248,7 @@ def draw_menu(stdscr, connection_status, user, cur):
 
 def main():
 
+    os.system('mode con: cols=150 lines=50')
     dbname = input('Укажите БД: ')
     user = input('Логин: ')
     passwd = input('Пароль: ')
@@ -255,6 +269,9 @@ def main():
     # End SQL sesion
     cur.close()
     conn.close()
+
+    # Resize Terminal Window
+    os.system("mode con: cols=80 lines=30")
 
 if __name__ == "__main__":
 
