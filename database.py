@@ -45,20 +45,21 @@ class Printer():
         self.current_str = 0
 
 
-    def move_position(self, step):
+    def move_position(self, step, key=''):
         """Меняет текущую позицию"""
 
         self.position += step
         if self.position < 0:
             self.position = 0
         elif self.position > 2:
-            self.position = 2
+            self.position = 0
 
-        if self.position == 1:
-            self.pkey = self.data.get_products()[self.current_str]
-        elif self.position == 2:
-            self.bkey = self.data.get_blocks(self.pkey)[self.current_str]
+        if self.position == 1 and key:
+            self.pkey = key
+        elif self.position == 2 and key:
+            self.bkey = key
         self.current_str = 0
+
     def move_current_str(self, step):
         self.current_str += step
 
@@ -118,6 +119,9 @@ def draw_menu(stdscr, connection_status, user, cur):
     # printer.current_table = 0
     # Loop where k is the last character pressed
     # while (k != ord('q')):
+
+    current_str = ''
+
     while (k != 27):        # 'Esc'
 
         # Initialization
@@ -141,7 +145,7 @@ def draw_menu(stdscr, connection_status, user, cur):
         elif k == curses.KEY_LEFT:
             printer.move_position(-1)
         elif k == curses.KEY_RIGHT:
-            printer.move_position(1)
+            printer.move_position(1, current_str)
         # Cursor border
         # cursor_x = max(0, cursor_x)
         # cursor_x = min(width-1, cursor_x)
@@ -172,8 +176,8 @@ def draw_menu(stdscr, connection_status, user, cur):
         # stdscr.addstr(0, 0, whstr, curses.color_pair(1))
 
         # отрисовка текущей таблицы
-        for str in printer.get_data():
-            stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + str)
+        for string in printer.get_data():
+            stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + string)
             offset_y += 2
         # for line in printer.tables[printer.current_table]:
         #     stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + line.get_str())
@@ -219,6 +223,8 @@ def draw_menu(stdscr, connection_status, user, cur):
 
         # Draw current cursor position
         stdscr.addstr(cursor_y, cursor_x, '*')
+
+        current_str = stdscr.instr(cursor_y, cursor_x + 2).strip().decode("utf-8")
 
         # Refresh the screen
         stdscr.refresh()
