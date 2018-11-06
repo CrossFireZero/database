@@ -13,10 +13,8 @@ class Products():
     def __init__(self, params):
         self.dct = {}
         for tpl in params:
-            if tpl[3] not in self.dct.keys():
-                self.dct[tpl[3]] = {}
-            if tpl[2] not in self.dct[tpl[3]].keys():
-                self.dct[tpl[3]][tpl[2]] = []
+            self.dct.setdefault(tpl[3], {})
+            self.dct[tpl[3]].setdefault(tpl[2], [])
             self.dct[tpl[3]][tpl[2]].append(tpl[1])
 
     def get_products(self):
@@ -66,10 +64,13 @@ class Printer():
 
 
     def move_current_str(self, step):
+        """Перемещает указатель на выбранную строку"""
+
         self.current_str += step
 
 
     def get_data(self):
+        """Возвращает строки для отображения на экране терминала"""
 
         if self.position == 0:
             return self.data.get_products()
@@ -79,22 +80,31 @@ class Printer():
             self.current_str = 0
             return self.data.get_sblocks(self.pkey, self.bkey)
         elif self.position == 3:
-            return ['Текущая прошивка блока', 'Добавить СПО в базу', 'Журнал запросов СПО', 'Каталог СПО блока']
+            return ['Текущая прошивка блока', 'Добавить СПО в базу',
+                    'Журнал запросов СПО', 'Каталог СПО блока']
         elif self.position == 4 and self.current_str == 0:
             request = "SELECT log.date, to_char(log.time, 'HH24:MM:SS'), spo.ksum, spo.comment, spo.is_official FROM spoquerylog AS log JOIN spo ON log.spo_id=spo.id WHERE log.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "') ORDER BY log.id DESC LIMIT 1;"
             self.cur.execute(request)
             self.current_str = 0
-            return list(" | ".join(str(item) for item in line) for line in self.cur.fetchall())
+            return list(" | ".join(str(item) for item in line)
+                        for line in self.cur.fetchall())
+        elif self.position == 4 and self.current_str == 1:
+            request = "SELECT MAX(id) FROM spo;"
+            self.cur.execute(request)
+            self.current_str = 0
+            return int(self.cur.fetchall()[0][0])
         elif self.position == 4 and self.current_str == 2:
             request = "SELECT log.date, to_char(log.time, 'HH24:MM:SS'), spo.ksum, spo.comment, spo.is_official FROM spoquerylog AS log JOIN spo ON log.spo_id=spo.id WHERE log.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "') ORDER BY log.id DESC;"
             self.cur.execute(request)
             self.current_str = 0
-            return list(" | ".join(str(item) for item in line) for line in self.cur.fetchall())
+            return list(" | ".join(str(item) for item in line)
+                        for line in self.cur.fetchall())
         elif self.position == 4 and self.current_str == 3:
             request = "SELECT spo.date, spo.ksum, spo.md5, spo.comment, spo.is_official FROM spo WHERE spo.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "') ORDER BY spo.id DESC;"
             self.cur.execute(request)
             self.current_str = 0
-            return list(" | ".join(str(item) for item in line) for line in self.cur.fetchall())
+            return list(" | ".join(str(item) for item in line)
+                        for line in self.cur.fetchall())
 
         return []
 
@@ -106,7 +116,7 @@ def select(cur, from_, select='*', where=''):
     """SELECT table_name FROM information_schema.tables
            WHERE table_schema = 'public'"""
     if len(where) == 0:
-        request = "SELECT " + select + " FROM " + from_ +";"
+        request = ("SELECT " + select + " FROM " + from_ +";")
     else:
         request = ("SELECT " + select + " FROM " + from_ + " WHERE "
                     + where +";")
@@ -118,8 +128,11 @@ def select(cur, from_, select='*', where=''):
 def draw_menu(stdscr, connection_status, user, cur):
     """Отрисовка"""
 
-    # Current key
+    # Нажатая клавиша
     k = 0
+
+    # Текущая строка, на которой находится курсор
+    current_str = ''
 
     # Начальное положение  курсора
     cursor_x = 6
@@ -139,15 +152,7 @@ def draw_menu(stdscr, connection_status, user, cur):
     # rows = [Product(value) for value in select(cur, 'products')]
     printer = Printer(Products(select(cur, 'ownersSPO')), cur)
 
-    # Таблица с индексом 0 добавляется в хранилище экземпляра класса Printer
-    # printer.tables.append(rows)
-    # printer.current_table = 0
-    # Loop where k is the last character pressed
-    # while (k != ord('q')):
-
-    current_str = ''
-
-    while (k != 27):        # 'Esc'
+    while (k != 27):    # 'Esc'
 
         # Initialization
         stdscr.clear()
@@ -204,13 +209,32 @@ def draw_menu(stdscr, connection_status, user, cur):
 
         # отрисовка текущей таблицы
         data = printer.get_data()
-        if len(data):
-            for line in data:
-                stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + line)
-                offset_y += 2
-        else:
-                stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + 'Нет данных')
-                offset_y += 2
+        if type(data) is list:
+            if len(data):
+                for line in data:
+                    stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + line)
+                    offset_y += 2
+            else:
+                    stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + 'Нет данных')
+                    offset_y += 2
+        elif type(data) is int:
+            stdscr.addstr(start_y + offset_y, start_x, 'Укажите имя файла СПО: ')
+            st = ''
+            for i in printer.pkey:
+                st += str(ord(i))
+            st +='/'
+            for i in printer.bkey:
+                st += str(ord(i))
+            st +='/'
+            for i in printer.sbkey:
+                st += str(ord(i))
+            st +='/' + str(data+1) + '/'
+            curses.echo()
+            path = stdscr.getstr().strip().decode("utf-8")
+            curses.noecho()
+            file_name = path.split('\\')[-1]
+            stdscr.addstr(start_y + offset_y, start_x, '\t' + st + file_name)
+            offset_y += 2
         # for line in printer.tables[printer.current_table]:
         #     stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + line.get_str())
         #     offset_y += 2
@@ -267,10 +291,14 @@ def draw_menu(stdscr, connection_status, user, cur):
 
 def main():
 
-    os.system('mode con: cols=150 lines=50')
+    # Resize terminal in Windows
+    if os.name == 'nt':
+        os.system('mode con: cols=150 lines=50')
+
     dbname = input('Укажите БД: ')
     user = input('Логин: ')
     passwd = input('Пароль: ')
+
     # Try to connect to DataBase
     try:
         """Connect to PostgresQL server"""
@@ -289,8 +317,9 @@ def main():
     cur.close()
     conn.close()
 
-    # Resize Terminal Window
-    os.system("mode con: cols=80 lines=30")
+    # Resize terminal in Windows
+    if os.name == 'nt':
+        os.system("mode con: cols=80 lines=24")
 
 if __name__ == "__main__":
 
