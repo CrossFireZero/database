@@ -5,6 +5,23 @@ import curses
 import ftplib
 # PostgresQL
 import psycopg2
+# md5 for firmware
+import hashlib
+
+# Change directories - create if it doesn't exist
+def chdir(dir, ftp):
+    if directory_exists(dir, ftp) is False: # (or negate, whatever you prefer for readability)
+        ftp.mkd(dir)
+    ftp.cwd(dir)
+
+# Check if directory exists (in current location)
+def directory_exists(dir, ftp):
+    filelist = []
+    ftp.retrlines('LIST', filelist.append)
+    for f in filelist:
+        if f.split()[-1] == dir and f.upper().startswith('D'):
+            return True
+    return False
 
 
 class Products():
@@ -178,14 +195,13 @@ def draw_menu(stdscr, connection_status, user, cur):
         elif k == curses.KEY_RIGHT:
             cursor_y = 5
             printer.move_position(1, current_str)
+
         # Cursor border
         # cursor_x = max(0, cursor_x)
         # cursor_x = min(width-1, cursor_x)
         #
         # cursor_y = max(0, cursor_y)
         # cursor_y = min(height-1, cursor_y)
-
-
 
         # Declaration of strings
         # title = "ТУТ БУДЕТ ЗАГОЛОВОК"[:width-1]
@@ -228,22 +244,48 @@ def draw_menu(stdscr, connection_status, user, cur):
             st +='/'
             for i in printer.sbkey:
                 st += str(ord(i))
-            st +='/' + str(data+1) + '/'
+            st +='/' + str(data+1)
             curses.echo()
             path = stdscr.getstr().strip().decode("utf-8")
             curses.noecho()
             file_name = path.split('\\')[-1]
-            stdscr.addstr(start_y + offset_y, start_x, '\t' + st + file_name)
+            try:
+                with open(path,'rb') as f:
+                    hash = hashlib.md5(f.read()).hexdigest()
+                    stdscr.addstr(start_y + offset_y, start_x, '\t' + st + '/' + file_name + '\t' + hash)
+                    request = "SELECT md5 FROM spo WHERE owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + printer.pkey + "' AND block_name='" + printer.bkey + "' AND sub_block_name='" + printer.sbkey + "');"
+                    cur.execute(request)
+                    if (hash,) in cur.fetchall():
+                        stdscr.addstr(start_y + offset_y, start_x, '\nСПО С ДАННОЙ md5 УЖЕ ИМЕЕТСЯ В БАЗЕ!')
+                    else:
+                        ftp = ftplib.FTP('192.168.7.24')
+                        ftp.login(user='ftp_user', passwd='ftp')
+                        dir_list = st.split('/')
+                        ftp.cwd('files')
+                        for dir in dir_list:
+                            chdir(dir, ftp)
+                        ftp.storbinary('STOR ' + file_name, open(path,'rb'))
+                        ftp.close()
+                        stdscr.addstr(start_y + offset_y + 2, start_x, 'Укажите контрольную сумму СПО: ')
+                        curses.echo()
+                        ksum = stdscr.getstr().strip().decode("utf-8")
+                        curses.noecho()
+                        stdscr.addstr(start_y + offset_y + 4, start_x, 'Укажите комментарий: ')
+                        curses.echo()
+                        comment = stdscr.getstr().strip().decode("utf-8")
+                        curses.noecho()
+                        stdscr.addstr(start_y + offset_y + 6, start_x, 'Статус СПО (True или False): ')
+                        curses.echo()
+                        stat = stdscr.getstr().strip().decode("utf-8")
+                        curses.noecho()
+
+                        request = "INSERT INTO spo(owner_id, ksum, md5, path, comment, is_official) VALUES((SELECT id FROM ownersSPO WHERE products_name='" + printer.pkey + "' AND block_name='" + printer.bkey + "' AND sub_block_name='" + printer.sbkey + "'), '" + str(ksum) + "', '" + str(hash) + "', '" + st + '/' + file_name + "', '" + str(comment) + "', '" str(stat) + "');"
+            except:
+                stdscr.addstr(start_y + offset_y, start_x, '\nФАЙЛ НЕ НАЙДЕН!')
             offset_y += 2
-        # for line in printer.tables[printer.current_table]:
-        #     stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + line.get_str())
-        #     offset_y += 2
-        # for product in products:
-        #     stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' +
-        #                     product.get_str())
-        #     offset_y += 2
+
         offset_y -= 2
-        # stdscr.addstr(0, 0, str(offset_y))
+
         # Set cursor borders
         if cursor_y < 5:
             cursor_y = 5
