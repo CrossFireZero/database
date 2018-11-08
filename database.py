@@ -5,17 +5,18 @@ import curses
 import ftplib
 # PostgresQL
 import psycopg2
-# md5 for firmware
+# md5
 import hashlib
 
-# Change directories - create if it doesn't exist
+
 def chdir(dir, ftp):
+    """Change directories - create if it doesn't exist"""
     if directory_exists(dir, ftp) is False: # (or negate, whatever you prefer for readability)
         ftp.mkd(dir)
     ftp.cwd(dir)
 
-# Check if directory exists (in current location)
 def directory_exists(dir, ftp):
+    """Check if directory exists (in current location)"""
     filelist = []
     ftp.retrlines('LIST', filelist.append)
     for f in filelist:
@@ -36,17 +37,14 @@ class Products():
 
     def get_products(self):
         """Возвращает список изделий"""
-
         return list(self.dct.keys())
 
     def get_blocks(self, key):
         """Возвращает список блоков"""
-
         return list(self.dct[key].keys())
 
     def get_sblocks(self, pkey, bkey):
         """Возвращает список подблоков"""
-
         return self.dct[pkey][bkey][:]
 
 
@@ -65,7 +63,6 @@ class Printer():
 
     def move_position(self, step, key=''):
         """Меняет текущую позицию"""
-
         self.position += step
         if self.position < 0:
             self.position = 0
@@ -82,13 +79,11 @@ class Printer():
 
     def move_current_str(self, step):
         """Перемещает указатель на выбранную строку"""
-
         self.current_str += step
 
 
     def get_data(self):
         """Возвращает строки для отображения на экране терминала"""
-
         if self.position == 0:
             return self.data.get_products()
         elif self.position == 1:
@@ -126,12 +121,13 @@ class Printer():
         return []
 
 def select(cur, from_, select='*', where=''):
-    """Запрос данных из таблицы"""
+    """
+    Запрос данных из таблицы
+    Образец запроса для получения списка таблиц:
+    (SELECT table_name FROM information_schema.tables
+    WHERE table_schema = 'public';)
+    """
 
-    # Making the request
-    # Образец запроса для получения списка таблиц
-    """SELECT table_name FROM information_schema.tables
-           WHERE table_schema = 'public'"""
     if len(where) == 0:
         request = ("SELECT " + select + " FROM " + from_ +";")
     else:
@@ -144,7 +140,6 @@ def select(cur, from_, select='*', where=''):
 
 def draw_menu(stdscr, connection_status, user, cur):
     """Отрисовка"""
-
     # Нажатая клавиша
     k = 0
 
@@ -225,6 +220,7 @@ def draw_menu(stdscr, connection_status, user, cur):
 
         # отрисовка текущей таблицы
         data = printer.get_data()
+        # Если отрисовываем таблицу
         if type(data) is list:
             if len(data):
                 for line in data:
@@ -233,39 +229,46 @@ def draw_menu(stdscr, connection_status, user, cur):
             else:
                     stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + 'Нет данных')
                     offset_y += 2
+        # Если заливаем новую прошивку в базу
         elif type(data) is int:
+            # Просим пользователя ввести путь до файла прошивки
             stdscr.addstr(start_y + offset_y, start_x, 'Укажите имя файла СПО: ')
-            st = ''
-            for i in printer.pkey:
-                st += str(ord(i))
-            st +='/'
-            for i in printer.bkey:
-                st += str(ord(i))
-            st +='/'
-            for i in printer.sbkey:
-                st += str(ord(i))
-            st +='/' + str(data+1)
+            # Формируем путь до файла СПО на FTP-сервере
+            st = (printer.pkey + '/' + printer.bkey + '/' + printer.sbkey +
+                    '/' + str(data+1))
+            # Переводим путь в int-представление
+            st = ''.join(map(str,list(map(lambda x: '/' if x=='/' else ord(x), st))))
+            # Ожидаем ввода пути до файла с прошивкой
             curses.echo()
             path = stdscr.getstr().strip().decode("utf-8")
             curses.noecho()
+            # Вынимаем имя файла из абсолютного пути до файла прошивки
             file_name = path.split('\\')[-1]
+            # Пробуем открыть указанный файл для подсчета md5
             try:
                 with open(path,'rb') as f:
+                    # Подсчет md5
                     hash = hashlib.md5(f.read()).hexdigest()
                     stdscr.addstr(start_y + offset_y, start_x, '\t' + st + '/' + file_name + '\t' + hash)
+                    # Проверяем налчие прошики с данной md5 в базе
                     request = "SELECT md5 FROM spo WHERE owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + printer.pkey + "' AND block_name='" + printer.bkey + "' AND sub_block_name='" + printer.sbkey + "');"
                     cur.execute(request)
+                    # Если прошивка с указанной md5 уже есть в базе - СТОП
                     if (hash,) in cur.fetchall():
                         stdscr.addstr(start_y + offset_y, start_x, '\nСПО С ДАННОЙ md5 УЖЕ ИМЕЕТСЯ В БАЗЕ!')
                     else:
+                        # Создаем директорию с именем st на FTP-сервере
                         ftp = ftplib.FTP('192.168.7.24')
                         ftp.login(user='ftp_user', passwd='ftp')
                         dir_list = st.split('/')
                         ftp.cwd('files')
                         for dir in dir_list:
                             chdir(dir, ftp)
+                        # Пишем файл file_name в созданную директорию
                         ftp.storbinary('STOR ' + file_name, open(path,'rb'))
+                        # Закрываем FTP-сессию
                         ftp.close()
+                        # Заполняем оставшиеся атрибуты прошивки
                         stdscr.addstr(start_y + offset_y + 2, start_x, 'Укажите контрольную сумму СПО: ')
                         curses.echo()
                         ksum = stdscr.getstr().strip().decode("utf-8")
@@ -278,8 +281,9 @@ def draw_menu(stdscr, connection_status, user, cur):
                         curses.echo()
                         stat = stdscr.getstr().strip().decode("utf-8")
                         curses.noecho()
-
+                        # Формируем запрос для добавления записи о прошике в базу
                         request = "INSERT INTO spo(owner_id, ksum, md5, path, comment, is_official) VALUES((SELECT id FROM ownersSPO WHERE products_name='" + printer.pkey + "' AND block_name='" + printer.bkey + "' AND sub_block_name='" + printer.sbkey + "'), '" + str(ksum) + "', '" + str(hash) + "', '" + st + '/' + file_name + "', '" + str(comment) + "', '" str(stat) + "');"
+            # Если не смогли открыть файл с прошивкой
             except:
                 stdscr.addstr(start_y + offset_y, start_x, '\nФАЙЛ НЕ НАЙДЕН!')
             offset_y += 2
