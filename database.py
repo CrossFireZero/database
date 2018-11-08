@@ -138,8 +138,12 @@ def select(cur, from_, select='*', where=''):
     # Return request result
     return cur.fetchall()
 
-def draw_menu(stdscr, connection_status, user, cur):
+def draw_menu(stdscr, connection_status, user, conn):
     """Отрисовка"""
+
+    # Для работы с PostgresQL
+    cur = conn.cursor()
+
     # Нажатая клавиша
     k = 0
 
@@ -282,7 +286,13 @@ def draw_menu(stdscr, connection_status, user, cur):
                         stat = stdscr.getstr().strip().decode("utf-8")
                         curses.noecho()
                         # Формируем запрос для добавления записи о прошике в базу
-                        request = "INSERT INTO spo(owner_id, ksum, md5, path, comment, is_official) VALUES((SELECT id FROM ownersSPO WHERE products_name='" + printer.pkey + "' AND block_name='" + printer.bkey + "' AND sub_block_name='" + printer.sbkey + "'), '" + str(ksum) + "', '" + str(hash) + "', '" + st + '/' + file_name + "', '" + str(comment) + "', '" str(stat) + "');"
+                        request = "SELECT id FROM ownersSPO WHERE products_name='" + printer.pkey + "' AND block_name='" + printer.bkey + "' AND sub_block_name='" + printer.sbkey + "';"
+                        cur.execute(request)
+                        id = cur.fetchall()[0][0]
+                        request = "INSERT INTO spo(owner_id, ksum, md5, path, comment, is_official) VALUES(" + str(id) + ", '" + str(ksum) + "', '" + str(hash) + "', '" + st + "/" + file_name + "', '" + str(comment) + "', " + str(stat) + ");"
+                        cur.execute(request)
+                        conn.commit()
+                        stdscr.addstr(start_y + offset_y + 8, start_x, 'Спо добавлено в базу'.upper())
             # Если не смогли открыть файл с прошивкой
             except:
                 stdscr.addstr(start_y + offset_y, start_x, '\nФАЙЛ НЕ НАЙДЕН!')
@@ -350,14 +360,13 @@ def main():
         """Connect to PostgresQL server"""
         conn = psycopg2.connect(dbname=dbname, host='192.168.7.24',
                                 user=user)
-        cur = conn.cursor()
         connection_status = 'Connected to database ' + dbname
     except:
         print('DataBase connection error!')
         exit()
 
     # Start curses
-    curses.wrapper(draw_menu, connection_status, user, cur)
+    curses.wrapper(draw_menu, connection_status, user, conn)
 
     # End SQL sesion
     cur.close()
