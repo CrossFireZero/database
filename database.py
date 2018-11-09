@@ -56,6 +56,7 @@ class Printer():
         self.pkey = ''
         self.bkey = ''
         self.sbkey =''
+        self.md5 = ''
         self.position = 0
         self.current_str = 0
         self.cur = cur
@@ -66,7 +67,7 @@ class Printer():
         self.position += step
         if self.position < 0:
             self.position = 0
-        elif self.position > 4:
+        elif self.position > 5:
             self.position = 0
 
         if self.position == 1 and key:
@@ -75,7 +76,8 @@ class Printer():
             self.bkey = key
         elif self.position == 3 and key:
             self.sbkey = key
-
+        elif self.position == 5 and key:
+            self.md5 = key.split(' | ')[3]
 
     def move_current_str(self, step):
         """Перемещает указатель на выбранную строку"""
@@ -95,7 +97,7 @@ class Printer():
             return ['Текущая прошивка блока', 'Добавить СПО в базу',
                     'Журнал запросов СПО', 'Каталог СПО блока']
         elif self.position == 4 and self.current_str == 0:
-            request = "SELECT log.date, to_char(log.time, 'HH24:MM:SS'), spo.ksum, spo.comment, spo.is_official FROM spoquerylog AS log JOIN spo ON log.spo_id=spo.id WHERE log.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "') ORDER BY log.id DESC LIMIT 1;"
+            request = "SELECT log.date, to_char(log.time, 'HH24:MM:SS'), spo.ksum, spo.md5, spo.comment, spo.is_official FROM spoquerylog AS log JOIN spo ON log.spo_id=spo.id WHERE log.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "') ORDER BY log.id DESC LIMIT 1;"
             self.cur.execute(request)
             self.current_str = 0
             return list(" | ".join(str(item) for item in line)
@@ -106,17 +108,22 @@ class Printer():
             self.current_str = 0
             return int(self.cur.fetchall()[0][0])
         elif self.position == 4 and self.current_str == 2:
-            request = "SELECT log.date, to_char(log.time, 'HH24:MM:SS'), spo.ksum, spo.comment, spo.is_official FROM spoquerylog AS log JOIN spo ON log.spo_id=spo.id WHERE log.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "') ORDER BY log.id DESC;"
+            request = "SELECT log.date, to_char(log.time, 'HH24:MM:SS'), spo.ksum, spo.md5, spo.comment, spo.is_official FROM spoquerylog AS log JOIN spo ON log.spo_id=spo.id WHERE log.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "') ORDER BY log.id DESC;"
             self.cur.execute(request)
             self.current_str = 0
             return list(" | ".join(str(item) for item in line)
                         for line in self.cur.fetchall())
         elif self.position == 4 and self.current_str == 3:
-            request = "SELECT spo.date, spo.ksum, spo.md5, spo.comment, spo.is_official FROM spo WHERE spo.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "') ORDER BY spo.id DESC;"
+            request = "SELECT spo.date, spo.is_official, spo.ksum, spo.md5, spo.comment FROM spo WHERE spo.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "') ORDER BY spo.id DESC;"
             self.cur.execute(request)
             self.current_str = 0
             return list(" | ".join(str(item) for item in line)
                         for line in self.cur.fetchall())
+        elif self.position == 5:
+            request = "SELECT path FROM spo WHERE md5='" + self.md5 + "';"
+            self.cur.execute(request)
+            self.current_str = 0
+            return str(self.cur.fetchall()[0][0])
 
         return []
 
@@ -297,6 +304,18 @@ def draw_menu(stdscr, connection_status, user, conn):
             except:
                 stdscr.addstr(start_y + offset_y, start_x, '\nФАЙЛ НЕ НАЙДЕН!')
             offset_y += 2
+        elif type(data) is str:
+            # stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + data)
+            stdscr.addstr(start_y + offset_y, start_x, 'УКАЖИТЕ, КУДА СОХРАНИТЬ ПРОШИВКУ ' + data.split('/')[-1] +' : ')
+            curses.echo()
+            spo_path = stdscr.getstr().strip().decode("utf-8")
+            curses.noecho()
+            # Подключаемся к FTP-серверу
+            ftp = ftplib.FTP('192.168.7.24')
+            ftp.login(user='ftp_user', passwd='ftp')
+            ftp.retrbinary('RETR files/' + data, open(spo_path + data.split('/')[-1], 'wb').write)
+            ftp.close()
+
 
         offset_y -= 2
 
