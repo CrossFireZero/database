@@ -59,6 +59,7 @@ class Printer():
         self.md5 = ''
         self.position = 0
         self.current_str = 0
+        self.max_strings = 0 # максимальное кол-во строк для отображения и выбора
         self.cur = cur
 
 
@@ -83,25 +84,38 @@ class Printer():
         """Перемещает указатель на выбранную строку"""
         self.current_str += step
 
+        if self.current_str <= 0:
+            self.current_str = 0
+        elif self.current_str >= self.max_strings:
+            self.current_str = self.max_strings
 
     def get_data(self):
         """Возвращает строки для отображения на экране терминала"""
         if self.position == 0:
-            return self.data.get_products()
+            ret_val = self.data.get_products()
+            self.max_strings = len(ret_val) - 1
+            return ret_val
         elif self.position == 1:
-            return self.data.get_blocks(self.pkey)
+            ret_val = self.data.get_blocks(self.pkey)
+            self.max_strings = len(ret_val) - 1
+            return ret_val
         elif self.position == 2:
             self.current_str = 0
-            return self.data.get_sblocks(self.pkey, self.bkey)
+            ret_val = self.data.get_sblocks(self.pkey, self.bkey)
+            self.max_strings = len(ret_val) - 1
+            return ret_val
         elif self.position == 3:
+            self.max_strings = 3
             return ['Текущая прошивка блока', 'Добавить СПО в базу',
                     'Журнал запросов СПО', 'Каталог СПО блока']
         elif self.position == 4 and self.current_str == 0:
             request = "SELECT log.date, to_char(log.time, 'HH24:MM:SS'), spo.ksum, spo.md5, spo.comment, spo.is_official FROM spoquerylog AS log JOIN spo ON log.spo_id=spo.id WHERE log.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "') ORDER BY log.id DESC LIMIT 1;"
             self.cur.execute(request)
             self.current_str = 0
-            return list(" | ".join(str(item) for item in line)
+            ret_val = list(" | ".join(str(item) for item in line)
                         for line in self.cur.fetchall())
+            self.max_strings = len(ret_val) - 1
+            return ret_val
         elif self.position == 4 and self.current_str == 1:
             request = "SELECT MAX(id) FROM spo;"
             self.cur.execute(request)
@@ -111,14 +125,18 @@ class Printer():
             request = "SELECT log.date, to_char(log.time, 'HH24:MM:SS'), spo.ksum, spo.md5, spo.comment, spo.is_official FROM spoquerylog AS log JOIN spo ON log.spo_id=spo.id WHERE log.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "') ORDER BY log.id DESC;"
             self.cur.execute(request)
             self.current_str = 0
-            return list(" | ".join(str(item) for item in line)
+            ret_val = list(" | ".join(str(item) for item in line)
                         for line in self.cur.fetchall())
+            self.max_strings = len(ret_val) - 1
+            return ret_val
         elif self.position == 4 and self.current_str == 3:
             request = "SELECT spo.date, spo.is_official, spo.ksum, spo.md5, spo.comment FROM spo WHERE spo.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "') ORDER BY spo.id DESC;"
             self.cur.execute(request)
             self.current_str = 0
-            return list(" | ".join(str(item) for item in line)
+            ret_val = list(" | ".join(str(item) for item in line)
                         for line in self.cur.fetchall())
+            self.max_strings = len(ret_val) - 1
+            return ret_val
         elif self.position == 5:
             request = "SELECT path FROM spo WHERE md5='" + self.md5 + "';"
             self.cur.execute(request)
@@ -174,6 +192,7 @@ def draw_menu(stdscr, connection_status, user, conn):
     # Get data from Products table (where="param='x'" need '' for string params)
     # rows = [Product(value) for value in select(cur, 'products')]
     printer = Printer(Products(select(cur, 'ownersSPO')), cur)
+    data = printer.get_data()
 
     while (k != 27):    # 'Esc'
 
@@ -198,9 +217,13 @@ def draw_menu(stdscr, connection_status, user, conn):
         elif k == curses.KEY_LEFT:
             cursor_y = 5
             printer.move_position(-1)
+            # отрисовка текущей таблицы
+            data = printer.get_data()
         elif k == curses.KEY_RIGHT:
             cursor_y = 5
             printer.move_position(1, current_str)
+            # отрисовка текущей таблицы
+            data = printer.get_data()
 
         # Cursor border
         # cursor_x = max(0, cursor_x)
@@ -214,7 +237,6 @@ def draw_menu(stdscr, connection_status, user, conn):
         # subtitle = "Written by Clay McLeod"[:width-1]
         # keystr = "Last key pressed: {}".format(k)[:width-1]
         # statusbarstr = "Press 'Esc' to exit | STATUS BAR | Pos: {}, {}".format(cursor_x, cursor_y)
-        statusbarstr = (connection_status + ' as ' + user)
 
         # if k == 0:
         #     keystr = "No key press detected..."[:width-1]
@@ -229,9 +251,15 @@ def draw_menu(stdscr, connection_status, user, conn):
         # whstr = "Width: {}, Height: {}".format(width, height)
         # stdscr.addstr(0, 0, whstr, curses.color_pair(1))
 
-        # отрисовка текущей таблицы
-        data = printer.get_data()
+
+
+        # формируем статус-бар
+        statusbarstr = (connection_status + ' as ' + user + ', position: '
+          + str(printer.position) + ' current str: ' + str(printer.current_str))
+
+
         # Если отрисовываем таблицу
+        stdscr.attron(curses.A_BOLD)
         if type(data) is list:
             if len(data):
                 for line in data:
@@ -260,13 +288,15 @@ def draw_menu(stdscr, connection_status, user, conn):
                 with open(path,'rb') as f:
                     # Подсчет md5
                     hash = hashlib.md5(f.read()).hexdigest()
-                    stdscr.addstr(start_y + offset_y, start_x, '\t' + st + '/' + file_name + '\t' + hash)
+                    stdscr.addstr(start_y + offset_y, start_x,
+                                    '\t' + st + '/' + file_name + '\t' + hash)
                     # Проверяем налчие прошики с данной md5 в базе
                     request = "SELECT md5 FROM spo WHERE owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + printer.pkey + "' AND block_name='" + printer.bkey + "' AND sub_block_name='" + printer.sbkey + "');"
                     cur.execute(request)
                     # Если прошивка с указанной md5 уже есть в базе - СТОП
                     if (hash,) in cur.fetchall():
-                        stdscr.addstr(start_y + offset_y, start_x, '\nСПО С ДАННОЙ md5 УЖЕ ИМЕЕТСЯ В БАЗЕ!')
+                        stdscr.addstr(start_y + offset_y, start_x,
+                                    '\nСПО С ДАННОЙ md5 УЖЕ ИМЕЕТСЯ В БАЗЕ!')
                     else:
                         # Создаем директорию с именем st на FTP-сервере
                         ftp = ftplib.FTP('192.168.7.24')
@@ -299,23 +329,27 @@ def draw_menu(stdscr, connection_status, user, conn):
                         request = "INSERT INTO spo(owner_id, ksum, md5, path, comment, is_official) VALUES(" + str(id) + ", '" + str(ksum) + "', '" + str(hash) + "', '" + st + "/" + file_name + "', '" + str(comment) + "', " + str(stat) + ");"
                         cur.execute(request)
                         conn.commit()
-                        stdscr.addstr(start_y + offset_y + 8, start_x, 'Спо добавлено в базу'.upper())
+                        stdscr.addstr(start_y + offset_y + 8, start_x,
+                                                'Спо добавлено в базу'.upper())
             # Если не смогли открыть файл с прошивкой
             except:
                 stdscr.addstr(start_y + offset_y, start_x, '\nФАЙЛ НЕ НАЙДЕН!')
             offset_y += 2
         elif type(data) is str:
             # stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + data)
-            stdscr.addstr(start_y + offset_y, start_x, 'УКАЖИТЕ, КУДА СОХРАНИТЬ ПРОШИВКУ ' + data.split('/')[-1] +' : ')
+            stdscr.addstr(start_y + offset_y, start_x,
+               'УКАЖИТЕ, КУДА СОХРАНИТЬ ПРОШИВКУ ' + data.split('/')[-1] +' : ')
             curses.echo()
             spo_path = stdscr.getstr().strip().decode("utf-8")
             curses.noecho()
             # Подключаемся к FTP-серверу
             ftp = ftplib.FTP('192.168.7.24')
             ftp.login(user='ftp_user', passwd='ftp')
-            ftp.retrbinary('RETR files/' + data, open(spo_path + data.split('/')[-1], 'wb').write)
+            ftp.retrbinary('RETR files/' + data,
+                            open(spo_path + data.split('/')[-1], 'wb').write)
             ftp.close()
 
+        stdscr.attroff(curses.A_BOLD)
 
         offset_y -= 2
 
