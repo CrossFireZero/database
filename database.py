@@ -348,6 +348,12 @@ def draw_menu(stdscr, connection_status, user, conn):
             ftp.retrbinary('RETR files/' + data,
                             open(spo_path + data.split('/')[-1], 'wb').write)
             ftp.close()
+            request = "SELECT id, owner_id FROM spo WHERE md5='" + printer.md5 + "';"
+            cur.execute(request)
+            s, o = cur.fetchall()[0]
+            request = "INSERT INTO spoquerylog(spo_id, owner_id) VALUES(" + str(s) + ", " + str(o) + ");"
+            cur.execute(request)
+            conn.commit()
 
         stdscr.attroff(curses.A_BOLD)
 
@@ -397,6 +403,7 @@ def draw_menu(stdscr, connection_status, user, conn):
         # Wait for next input
         k = stdscr.getch()
 
+    cur.close()
 
 def main():
 
@@ -422,7 +429,6 @@ def main():
     curses.wrapper(draw_menu, connection_status, user, conn)
 
     # End SQL sesion
-    cur.close()
     conn.close()
 
     # Resize terminal in Windows
