@@ -1,4 +1,5 @@
 import os
+import sys
 # Interface
 import curses
 # FTP
@@ -218,7 +219,7 @@ def draw_menu(stdscr, connection_status, user, conn):
         offset_y = 0
 
         # Отрисовать рамку
-        #stdscr.border(0)
+        # stdscr.border(0)
 
         # Скрыть мигающий курсор ('_')
         curses.curs_set(0)
@@ -423,9 +424,18 @@ def draw_menu(stdscr, connection_status, user, conn):
 
 def main():
 
-    dbname = input('Укажите БД: ')
-    user = input('Логин: ')
-    passwd = input('Пароль: ')
+    if len(sys.argv) > 1:
+        dbname = str(sys.argv[1])
+        user =   str(sys.argv[2])
+        try:
+            passwd = str(sys.argv[3])
+        except IndexError:
+            logging.warning('Вход без пароля!')
+            passwd = ''
+    else:
+        dbname = input('Укажите БД: ')
+        user = input('Логин: ')
+        passwd = input('Пароль: ')
 
     # Try to connect to DataBase
     try:
