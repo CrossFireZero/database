@@ -431,7 +431,7 @@ def main():
             passwd = str(sys.argv[3])
         except IndexError:
             logging.warning('Вход без пароля!')
-            passwd = ''
+            passwd = None
     else:
         dbname = input('Укажите БД: ')
         user = input('Логин: ')
@@ -440,7 +440,8 @@ def main():
     # Try to connect to DataBase
     try:
         """Connect to PostgresQL server"""
-        conn = psycopg2.connect(dbname=dbname, host='192.168.7.24', user=user)
+        conn = psycopg2.connect(dbname=dbname, host='192.168.7.24', user=user,
+                                passwd=passwd)
     except Exception as err:
         print('DataBase connection error!')
         logging.critical(str(err))
