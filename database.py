@@ -7,11 +7,16 @@ import ftplib
 import psycopg2
 # md5
 import hashlib
+# Logging
+import logging
 
+# Включаем протоколирование ошибок и сообщений
+logging.basicConfig(filename='log.txt', level=logging.DEBUG,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 def chdir(dir, ftp):
     """Change directories - create if it doesn't exist"""
-    if directory_exists(dir, ftp) is False: # (or negate, whatever you prefer for readability)
+    if directory_exists(dir, ftp) is False:
         ftp.mkd(dir)
     ftp.cwd(dir)
 
@@ -62,9 +67,9 @@ class Printer():
         self.max_strings = 0 # максимальное кол-во строк для отображения и выбора
         self.cur = cur
 
-
     def move_position(self, step, key=''):
         """Меняет текущую позицию"""
+        #logging.info(key)
         self.position += step
         if self.position < 0:
             self.position = 0
@@ -113,7 +118,7 @@ class Printer():
             self.cur.execute(request)
             self.current_str = 0
             ret_val = list(" | ".join(str(item) for item in line)
-                        for line in self.cur.fetchall())
+                           for line in self.cur.fetchall())
             self.max_strings = len(ret_val) - 1
             return ret_val
         elif self.position == 4 and self.current_str == 1:
@@ -126,7 +131,7 @@ class Printer():
             self.cur.execute(request)
             self.current_str = 0
             ret_val = list(" | ".join(str(item) for item in line)
-                        for line in self.cur.fetchall())
+                           for line in self.cur.fetchall())
             self.max_strings = len(ret_val) - 1
             return ret_val
         elif self.position == 4 and self.current_str == 3:
@@ -134,7 +139,7 @@ class Printer():
             self.cur.execute(request)
             self.current_str = 0
             ret_val = list(" | ".join(str(item) for item in line)
-                        for line in self.cur.fetchall())
+                           for line in self.cur.fetchall())
             self.max_strings = len(ret_val) - 1
             return ret_val
         elif self.position == 5:
@@ -144,6 +149,7 @@ class Printer():
             return str(self.cur.fetchall()[0][0])
 
         return []
+
 
 def select(cur, from_, select='*', where=''):
     """
@@ -157,7 +163,7 @@ def select(cur, from_, select='*', where=''):
         request = ("SELECT " + select + " FROM " + from_ +";")
     else:
         request = ("SELECT " + select + " FROM " + from_ + " WHERE "
-                    + where +";")
+                   + where +";")
     # Sending request
     cur.execute(request)
     # Return request result
@@ -189,25 +195,35 @@ def draw_menu(stdscr, connection_status, user, conn):
     # curses.init_pair(2, curses.COLOR_RED, curses.COLOR_BLACK)
     curses.init_pair(3, curses.COLOR_BLACK, curses.COLOR_WHITE)
 
-    # Get data from Products table (where="param='x'" need '' for string params)
-    # rows = [Product(value) for value in select(cur, 'products')]
+    # Инициализируем экземпляр класса Принтер и получаем первую таблицу
     printer = Printer(Products(select(cur, 'ownersSPO')), cur)
     data = printer.get_data()
 
+    # Получаем размеры терминала
+    height, width = stdscr.getmaxyx()
+
+    # Начальные отступы выводимых строк от верхнего левого края терминала,
+    # где начало координат: y=0,x=0
+    start_x = 5
+    start_y = 5
+    # Максимально возможное кол-во строк для отображения
+    max_lines = int((height - start_y - 1)/2)
+
     while (k != 27):    # 'Esc'
 
-        # Initialization
+        # Очистка экрана терминала
         stdscr.clear()
-        height, width = stdscr.getmaxyx()
 
-        # Hide cursor
-        curses.curs_set(0)
-
-        # Centering calculations
-        start_x = 5
-        start_y = 5
+        # Начальное смещение по Y для отрисовки строк
         offset_y = 0
 
+        # Отрисовать рамку
+        #stdscr.border(0)
+
+        # Скрыть мигающий курсор ('_')
+        curses.curs_set(0)
+
+        # Обработка нажатия клавиш управления работой приложения
         if k == curses.KEY_DOWN:
             cursor_y = cursor_y + 2
             printer.move_current_str(1)
@@ -225,58 +241,51 @@ def draw_menu(stdscr, connection_status, user, conn):
             # отрисовка текущей таблицы
             data = printer.get_data()
 
-        # Cursor border
-        # cursor_x = max(0, cursor_x)
-        # cursor_x = min(width-1, cursor_x)
-        #
-        # cursor_y = max(0, cursor_y)
-        # cursor_y = min(height-1, cursor_y)
-
-        # Declaration of strings
-        # title = "ТУТ БУДЕТ ЗАГОЛОВОК"[:width-1]
-        # subtitle = "Written by Clay McLeod"[:width-1]
-        # keystr = "Last key pressed: {}".format(k)[:width-1]
-        # statusbarstr = "Press 'Esc' to exit | STATUS BAR | Pos: {}, {}".format(cursor_x, cursor_y)
-
-        # if k == 0:
-        #     keystr = "No key press detected..."[:width-1]
-
-        # Centering calculations
-        # start_x_title = int((width // 2) - (len(title) // 2) - len(title) % 2)
-        # start_x_subtitle = int((width // 2) - (len(subtitle) // 2) - len(subtitle) % 2)
-        # start_x_keystr = int((width // 2) - (len(keystr) // 2) - len(keystr) % 2)
-        # start_y = int((height // 2) - 2)
-
-        # Rendering some text
-        # whstr = "Width: {}, Height: {}".format(width, height)
-        # stdscr.addstr(0, 0, whstr, curses.color_pair(1))
-
-
-
         # формируем статус-бар
         statusbarstr = (connection_status + ' as ' + user + ', position: '
-          + str(printer.position) + ' current str: ' + str(printer.current_str))
-
+                        + str(printer.position) + ' current str: '
+                        + str(printer.current_str) + '.  Max lines: '
+                        + str(max_lines) + '. Data: ' + str(len(data)))
 
         # Если отрисовываем таблицу
         stdscr.attron(curses.A_BOLD)
         if type(data) is list:
             if len(data):
-                for line in data:
-                    stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + line)
-                    offset_y += 2
+                # Если все строки помещаются на экран за раз
+                if len(data) <= max_lines:
+                    for line in data:
+                        stdscr.addstr(start_y + offset_y, start_x,
+                                      '[ ]\t' + line)
+                        offset_y += 2
+                # Если все строки не помещаются на экран
+                else:
+                    # Вычисляем интервал среза для вывода в терминал
+                    if (printer.current_str - max_lines + 1) <= 0:
+                        interval = 0
+                        start = 0
+                    else:
+                        interval = printer.current_str - max_lines + 1
+                        start += interval
+
+                    for line in data[start:interval + max_lines]:
+                        stdscr.addstr(start_y + offset_y, start_x,
+                                      '[ ]\t' + line)
+                        offset_y += 2
             else:
-                    stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + 'Нет данных')
+                    stdscr.addstr(start_y + offset_y, start_x,
+                                  '[ ]\t' + 'Нет данных')
                     offset_y += 2
         # Если заливаем новую прошивку в базу
         elif type(data) is int:
             # Просим пользователя ввести путь до файла прошивки
-            stdscr.addstr(start_y + offset_y, start_x, 'Укажите имя файла СПО: ')
+            stdscr.addstr(start_y + offset_y, start_x,
+                          'Укажите имя файла СПО: ')
             # Формируем путь до файла СПО на FTP-сервере
             st = (printer.pkey + '/' + printer.bkey + '/' + printer.sbkey +
-                    '/' + str(data+1))
+                  '/' + str(data+1))
             # Переводим путь в int-представление
-            st = ''.join(map(str,list(map(lambda x: '/' if x=='/' else ord(x), st))))
+            st = ''.join(map(str,list(map(lambda x: '/' if x=='/' else ord(x),
+                         st))))
             # Ожидаем ввода пути до файла с прошивкой
             curses.echo()
             path = stdscr.getstr().strip().decode("utf-8")
@@ -289,71 +298,90 @@ def draw_menu(stdscr, connection_status, user, conn):
                     # Подсчет md5
                     hash = hashlib.md5(f.read()).hexdigest()
                     stdscr.addstr(start_y + offset_y, start_x,
-                                    '\t' + st + '/' + file_name + '\t' + hash)
+                                  '\t' + st + '/' + file_name + '\t' + hash)
                     # Проверяем налчие прошики с данной md5 в базе
                     request = "SELECT md5 FROM spo WHERE owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + printer.pkey + "' AND block_name='" + printer.bkey + "' AND sub_block_name='" + printer.sbkey + "');"
                     cur.execute(request)
                     # Если прошивка с указанной md5 уже есть в базе - СТОП
                     if (hash,) in cur.fetchall():
                         stdscr.addstr(start_y + offset_y, start_x,
-                                    '\nСПО С ДАННОЙ md5 УЖЕ ИМЕЕТСЯ В БАЗЕ!')
+                                      '\nСПО С ДАННОЙ md5 УЖЕ ИМЕЕТСЯ В БАЗЕ!')
                     else:
-                        # Создаем директорию с именем st на FTP-сервере
-                        ftp = ftplib.FTP('192.168.7.24')
-                        ftp.login(user='ftp_user', passwd='ftp')
-                        dir_list = st.split('/')
-                        ftp.cwd('files')
-                        for dir in dir_list:
-                            chdir(dir, ftp)
-                        # Пишем файл file_name в созданную директорию
-                        ftp.storbinary('STOR ' + file_name, open(path,'rb'))
-                        # Закрываем FTP-сессию
-                        ftp.close()
-                        # Заполняем оставшиеся атрибуты прошивки
-                        stdscr.addstr(start_y + offset_y + 2, start_x, 'Укажите контрольную сумму СПО: ')
-                        curses.echo()
-                        ksum = stdscr.getstr().strip().decode("utf-8")
-                        curses.noecho()
-                        stdscr.addstr(start_y + offset_y + 4, start_x, 'Укажите комментарий: ')
-                        curses.echo()
-                        comment = stdscr.getstr().strip().decode("utf-8")
-                        curses.noecho()
-                        stdscr.addstr(start_y + offset_y + 6, start_x, 'Статус СПО (True или False): ')
-                        curses.echo()
-                        stat = stdscr.getstr().strip().decode("utf-8")
-                        curses.noecho()
-                        # Формируем запрос для добавления записи о прошике в базу
-                        request = "SELECT id FROM ownersSPO WHERE products_name='" + printer.pkey + "' AND block_name='" + printer.bkey + "' AND sub_block_name='" + printer.sbkey + "';"
-                        cur.execute(request)
-                        id = cur.fetchall()[0][0]
-                        request = "INSERT INTO spo(owner_id, ksum, md5, path, comment, is_official) VALUES(" + str(id) + ", '" + str(ksum) + "', '" + str(hash) + "', '" + st + "/" + file_name + "', '" + str(comment) + "', " + str(stat) + ");"
-                        cur.execute(request)
-                        conn.commit()
-                        stdscr.addstr(start_y + offset_y + 8, start_x,
-                                                'Спо добавлено в базу'.upper())
+                        try:
+                            # Создаем директорию с именем st на FTP-сервере
+                            ftp = ftplib.FTP('192.168.7.24')
+                            ftp.login(user='ftp_user', passwd='ftp')
+                            dir_list = st.split('/')
+                            ftp.cwd('files')
+                            for dir in dir_list:
+                                chdir(dir, ftp)
+                            # Пишем файл file_name в созданную директорию
+                            ftp.storbinary('STOR ' + file_name, open(path,'rb'))
+                            # Закрываем FTP-сессию
+                            ftp.close()
+                            # Заполняем оставшиеся атрибуты прошивки
+                            stdscr.addstr(start_y + offset_y + 2, start_x,
+                                          'Укажите контрольную сумму СПО: ')
+                            curses.echo()
+                            ksum = stdscr.getstr().strip().decode("utf-8")
+                            curses.noecho()
+                            stdscr.addstr(start_y + offset_y + 4, start_x,
+                                          'Укажите комментарий: ')
+                            curses.echo()
+                            comment = stdscr.getstr().strip().decode("utf-8")
+                            curses.noecho()
+                            stdscr.addstr(start_y + offset_y + 6, start_x,
+                                          'Статус СПО (True или False): ')
+                            curses.echo()
+                            stat = stdscr.getstr().strip().decode("utf-8")
+                            curses.noecho()
+                            # Формируем запрос для добавления записи о прошике в базу
+                            request = "SELECT id FROM ownersSPO WHERE products_name='" + printer.pkey + "' AND block_name='" + printer.bkey + "' AND sub_block_name='" + printer.sbkey + "';"
+                            cur.execute(request)
+                            id = cur.fetchall()[0][0]
+                            request = "INSERT INTO spo(owner_id, ksum, md5, path, comment, is_official) VALUES(" + str(id) + ", '" + str(ksum) + "', '" + str(hash) + "', '" + st + "/" + file_name + "', '" + str(comment) + "', " + str(stat) + ");"
+                            cur.execute(request)
+                            conn.commit()
+                            stdscr.addstr(start_y + offset_y + 8, start_x,
+                                          'Спо добавлено в базу'.upper())
+                        except Exception as err:
+                            stdscr.addstr(start_y + offset_y, start_x,
+                                          '\nОШИБКА ЗАГРУЗКИ ФАЙЛА НА FTP!')
+                            logging.error(str(err))
+
             # Если не смогли открыть файл с прошивкой
-            except:
+            except Exception as err:
                 stdscr.addstr(start_y + offset_y, start_x, '\nФАЙЛ НЕ НАЙДЕН!')
+                logging.error(str(err))
             offset_y += 2
+        # Если выкачиваем прошивку из базы
         elif type(data) is str:
-            # stdscr.addstr(start_y + offset_y, start_x, '[ ]\t' + data)
             stdscr.addstr(start_y + offset_y, start_x,
-               'УКАЖИТЕ, КУДА СОХРАНИТЬ ПРОШИВКУ ' + data.split('/')[-1] +' : ')
+                          'УКАЖИТЕ, КУДА СОХРАНИТЬ ПРОШИВКУ '
+                          + data.split('/')[-1] +' : ')
             curses.echo()
             spo_path = stdscr.getstr().strip().decode("utf-8")
+            # Добавляем слеш в конец строки с путем сохранения прошивки
+            if spo_path[-1] != '\\':
+                spo_path += '\\'
             curses.noecho()
             # Подключаемся к FTP-серверу
-            ftp = ftplib.FTP('192.168.7.24')
-            ftp.login(user='ftp_user', passwd='ftp')
-            ftp.retrbinary('RETR files/' + data,
-                            open(spo_path + data.split('/')[-1], 'wb').write)
-            ftp.close()
-            request = "SELECT id, owner_id FROM spo WHERE md5='" + printer.md5 + "';"
-            cur.execute(request)
-            s, o = cur.fetchall()[0]
-            request = "INSERT INTO spoquerylog(spo_id, owner_id) VALUES(" + str(s) + ", " + str(o) + ");"
-            cur.execute(request)
-            conn.commit()
+            try:
+                ftp = ftplib.FTP('192.168.7.24')
+                ftp.login(user='ftp_user', passwd='ftp')
+                ftp.retrbinary('RETR files/' + data,
+                               open(spo_path + data.split('/')[-1], 'wb').write)
+                ftp.close()
+                request = "SELECT id, owner_id FROM spo WHERE md5='" + printer.md5 + "';"
+                cur.execute(request)
+                s, o = cur.fetchall()[0]
+                request = "INSERT INTO spoquerylog(spo_id, owner_id) VALUES(" + str(s) + ", " + str(o) + ");"
+                cur.execute(request)
+                conn.commit()
+            except Exception as err:
+                stdscr.addstr(start_y + offset_y, start_x,
+                              '\nОШИБКА СОХРАНЕНИЯ ФАЙЛА!')
+                logging.error(str(err))
 
         stdscr.attroff(curses.A_BOLD)
 
@@ -370,24 +398,8 @@ def draw_menu(stdscr, connection_status, user, conn):
         stdscr.attron(curses.color_pair(3))
         stdscr.addstr(height-1, 0, statusbarstr)
         stdscr.addstr(height-1, len(statusbarstr),
-                        " " * (width - len(statusbarstr) - 1))
+                      " " * (width - len(statusbarstr) - 1))
         stdscr.attroff(curses.color_pair(3))
-
-        # Turning on attributes for title
-        # stdscr.attron(curses.color_pair(2))
-        # stdscr.attron(curses.A_BOLD)
-
-        # Rendering title
-        # stdscr.addstr(0, start_x_title, title)
-
-        # Turning off attributes for title
-        # stdscr.attroff(curses.color_pair(2))
-        # stdscr.attroff(curses.A_BOLD)
-
-        # Print rest of text
-        # stdscr.addstr(start_y + 1, start_x_subtitle, subtitle)
-        # stdscr.addstr(start_y + 3, (width // 2) - 2, '-' * 4)
-        # stdscr.addstr(start_y + 5, start_x_keystr, keystr)
 
         # Move cursor to position (cursor_y, cursor_x)
         stdscr.move(cursor_y, cursor_x)
@@ -403,13 +415,13 @@ def draw_menu(stdscr, connection_status, user, conn):
         # Wait for next input
         k = stdscr.getch()
 
+    # End SQL sesion
     cur.close()
+    conn.close()
+
+    logging.info('Завершение сеанса')
 
 def main():
-
-    # Resize terminal in Windows
-    if os.name == 'nt':
-        os.system('mode con: cols=150 lines=50')
 
     dbname = input('Укажите БД: ')
     user = input('Логин: ')
@@ -418,18 +430,19 @@ def main():
     # Try to connect to DataBase
     try:
         """Connect to PostgresQL server"""
-        conn = psycopg2.connect(dbname=dbname, host='192.168.7.24',
-                                user=user)
-        connection_status = 'Connected to database ' + dbname
-    except:
+        conn = psycopg2.connect(dbname=dbname, host='192.168.7.24', user=user)
+    except Exception as err:
         print('DataBase connection error!')
+        logging.critical(str(err))
         exit()
 
-    # Start curses
-    curses.wrapper(draw_menu, connection_status, user, conn)
+    # Resize terminal in Windows
+    if os.name == 'nt':
+        os.system('mode con: cols=150 lines=20')
 
-    # End SQL sesion
-    conn.close()
+    logging.info('Подключен к БД ' + dbname + ' как ' + user)
+    # Start curses
+    curses.wrapper(draw_menu, 'Connected to database ' + dbname, user, conn)
 
     # Resize terminal in Windows
     if os.name == 'nt':
