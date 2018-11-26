@@ -64,7 +64,7 @@ class Printer():
         self.md5 = ''
         self.position = 0
         self.current_str = 0
-        self.max_strings = 0 # максимальное кол-во строк для отображения и выбора
+        self.max_strings = 0 # макс кол-во строк для отображения и выбора
         self.cur = cur
 
     def move_position(self, step, key=''):
@@ -262,12 +262,10 @@ def draw_menu(stdscr, connection_status, user, conn):
                     # Вычисляем интервал среза для вывода в терминал
                     if (printer.current_str - max_lines + 1) <= 0:
                         interval = 0
-                        start = 0
                     else:
                         interval = printer.current_str - max_lines + 1
-                        start += interval
 
-                    for line in data[start:interval + max_lines]:
+                    for line in data[interval:interval + max_lines]:
                         stdscr.addstr(start_y + offset_y, start_x,
                                       '[ ]\t' + line)
                         offset_y += 2
@@ -391,8 +389,9 @@ def draw_menu(stdscr, connection_status, user, conn):
         if cursor_y < 5:
             cursor_y = 5
 
-        if cursor_y > start_y + offset_y:
+        if cursor_y > start_y + offset_y or ((printer.current_str - max_lines + 1) >= 0):
             cursor_y = start_y + offset_y
+
 
         # Render status bar
         stdscr.attron(curses.color_pair(3))
@@ -402,6 +401,7 @@ def draw_menu(stdscr, connection_status, user, conn):
         stdscr.attroff(curses.color_pair(3))
 
         # Move cursor to position (cursor_y, cursor_x)
+
         stdscr.move(cursor_y, cursor_x)
 
         # Draw current cursor position
@@ -438,7 +438,7 @@ def main():
 
     # Resize terminal in Windows
     if os.name == 'nt':
-        os.system('mode con: cols=150 lines=20')
+        os.system('mode con: cols=150 lines=50')
 
     logging.info('Подключен к БД ' + dbname + ' как ' + user)
     # Start curses
