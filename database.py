@@ -297,6 +297,10 @@ def draw_menu(stdscr, connection_status, user, conn):
                         + str(printer.current_str) + '.  Max lines: '
                         + str(max_lines) + '. Data: ' + str(len(data)))
 
+        # Заголовок приложения
+        title = ' База данных СПО '
+        stdscr.addstr(0, int((width-len(title))/2), title.upper(), curses.A_BOLD)
+
         # Если отрисовываем таблицу
         stdscr.attron(curses.A_BOLD)
         if type(data) is list:
