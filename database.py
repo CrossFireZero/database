@@ -118,7 +118,8 @@ class Printer():
             request = "SELECT log.date, to_char(log.time, 'HH24:MM:SS'), spo.ksum, spo.md5, spo.comment, spo.is_official FROM spoquerylog AS log JOIN spo ON log.spo_id=spo.id WHERE log.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "') ORDER BY log.id DESC LIMIT 1;"
             self.cur.execute(request)
             self.current_str = 0
-            ret_val = list(" | ".join(str(item) for item in line)
+            ret_val = list(" | ".join(str(item) if str(item) != 'True'
+                           else str(item) + ' ' for item in line )
                            for line in self.cur.fetchall())
             self.max_strings = len(ret_val) - 1
             return ret_val
@@ -131,7 +132,8 @@ class Printer():
             request = "SELECT log.date, to_char(log.time, 'HH24:MM:SS'), spo.ksum, spo.md5, spo.comment, spo.is_official FROM spoquerylog AS log JOIN spo ON log.spo_id=spo.id WHERE log.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "') ORDER BY log.id DESC;"
             self.cur.execute(request)
             self.current_str = 0
-            ret_val = list(" | ".join(str(item) for item in line)
+            ret_val = list(" | ".join(str(item) if str(item) != 'True'
+                           else str(item) + ' ' for item in line )
                            for line in self.cur.fetchall())
             self.max_strings = len(ret_val) - 1
             return ret_val
@@ -139,7 +141,8 @@ class Printer():
             request = "SELECT spo.date, spo.is_official, spo.ksum, spo.md5, spo.comment FROM spo WHERE spo.owner_id=(SELECT id FROM ownersSPO WHERE products_name='" + self.pkey + "' AND block_name='" + self.bkey + "' AND sub_block_name='" + self.sbkey + "') ORDER BY spo.id DESC;"
             self.cur.execute(request)
             self.current_str = 0
-            ret_val = list(" | ".join(str(item) for item in line)
+            ret_val = list(" | ".join(str(item) if str(item) != 'True'
+                           else str(item) + ' ' for item in line )
                            for line in self.cur.fetchall())
             self.max_strings = len(ret_val) - 1
             return ret_val
@@ -390,7 +393,8 @@ def draw_menu(stdscr, connection_status, user, conn):
         if cursor_y < 5:
             cursor_y = 5
 
-        if cursor_y > start_y + offset_y or ((printer.current_str - max_lines + 1) >= 0):
+        if cursor_y > start_y + offset_y or ((printer.current_str -
+                                              max_lines + 1) >= 0):
             cursor_y = start_y + offset_y
 
 
@@ -408,7 +412,8 @@ def draw_menu(stdscr, connection_status, user, conn):
         # Draw current cursor position
         stdscr.addstr(cursor_y, cursor_x, '*')
 
-        current_str = stdscr.instr(cursor_y, cursor_x + 2).strip().decode("utf-8")
+        current_str = stdscr.instr(cursor_y,
+                                   cursor_x + 2).strip().decode("utf-8")
 
         # Refresh the screen
         stdscr.refresh()
