@@ -113,7 +113,8 @@ class Printer():
 
     def move_position(self, step, key=''):
         """Меняет текущую позицию"""
-        #logging.info(key)
+        key = key.strip()
+        logging.info(key)
         self.position += step
         if self.position < 0:
             self.position = 0
@@ -265,7 +266,7 @@ def draw_menu(stdscr, connection_status, user, conn):
         offset_y = 0
 
         # Отрисовать рамку
-        # stdscr.border(0)
+        stdscr.border(0)
 
         # Скрыть мигающий курсор ('_')
         curses.curs_set(0)
@@ -456,7 +457,7 @@ def draw_menu(stdscr, connection_status, user, conn):
         stdscr.addstr(cursor_y, cursor_x, '*')
 
         current_str = stdscr.instr(cursor_y,
-                                   cursor_x + 2).strip().decode("utf-8")
+                                   cursor_x + 2).strip().decode("utf-8")[:-1]
 
         # Refresh the screen
         stdscr.refresh()
