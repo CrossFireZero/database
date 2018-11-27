@@ -72,7 +72,8 @@ def words_and_spaces(s):
     ['spam', ' ', 'eggs', ' ', 'ham']
     """
     # Inspired by http://stackoverflow.com/a/8769863/262271
-    return list(itertools.chain.from_iterable(zip(s.split(' '), itertools.repeat(' '))))[:-1] # Drop the last space
+    return list(itertools.chain.from_iterable(zip(s.split(' '),
+                itertools.repeat(' '))))[:-1] # Drop the last space
 
 class Products():
     """Хранит данные об изделиях, блока и подблоках"""
@@ -279,6 +280,7 @@ def draw_menu(stdscr, connection_status, user, conn):
             cursor_y = cursor_y - 2
             printer.move_current_str(-1)
         elif k == curses.KEY_LEFT:
+            printer.current_str = 0
             cursor_y = 5
             printer.move_position(-1)
             # отрисовка текущей таблицы
