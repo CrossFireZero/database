@@ -10,17 +10,20 @@ import psycopg2
 import hashlib
 # Logging
 import logging
-
+# Word wrap
+import itertools
 # Включаем протоколирование ошибок и сообщений
 logging.basicConfig(filename='log.txt', level=logging.DEBUG,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Смена рабочей директории на FTP-сервере
 def chdir(dir, ftp):
     """Change directories - create if it doesn't exist"""
     if directory_exists(dir, ftp) is False:
         ftp.mkd(dir)
     ftp.cwd(dir)
 
+# Проверка существования директории на FTP-сервере
 def directory_exists(dir, ftp):
     """Check if directory exists (in current location)"""
     filelist = []
@@ -30,6 +33,46 @@ def directory_exists(dir, ftp):
             return True
     return False
 
+# Добавление строки curses с переносом, если не умещается на одну строку
+def addstr_wordwrap(window, y, x, s, mode=0):
+        """ (cursesWindow, str, int, int) -> None
+
+        Add a string to a curses window with given dimensions. If mode is given
+        (e.g. curses.A_BOLD), then format text accordingly. We do very
+        rudimentary wrapping on word boundaries.
+
+        Raise WindowFullException if we run out of room.
+        """
+        # TODO Is there really no way to get the dimensions of a window programmatically?
+        # passing in height and width feels ugly.
+
+        height, width = window.getmaxyx()
+
+        # (y, x) = window.getyx() # Coords of cursor
+        # If the whole string fits on the current line, just add it all at once
+        if len(s) + x <= width - 2:
+            window.addstr(y, x, s, mode)
+        # Otherwise, split on word boundaries and write each token individually
+        else:
+            for word in words_and_spaces(s):
+                if len(word) + x <= width - 2:
+                    window.addstr(y, x, word, mode)
+                    # x += len(word)
+                else:
+                    if y == height-1:
+                        # Can't go down another line
+                        raise WindowFullException()
+                    window.addstr(y+1, 71, word, mode)
+                (y, x) = window.getyx()
+
+# Разделяет строку на слова и пробельные символы и возвращает список
+def words_and_spaces(s):
+    """
+    >>> words_and_spaces('spam eggs ham')
+    ['spam', ' ', 'eggs', ' ', 'ham']
+    """
+    # Inspired by http://stackoverflow.com/a/8769863/262271
+    return list(itertools.chain.from_iterable(zip(s.split(' '), itertools.repeat(' '))))[:-1] # Drop the last space
 
 class Products():
     """Хранит данные об изделиях, блока и подблоках"""
@@ -258,8 +301,9 @@ def draw_menu(stdscr, connection_status, user, conn):
                 # Если все строки помещаются на экран за раз
                 if len(data) <= max_lines:
                     for line in data:
-                        stdscr.addstr(start_y + offset_y, start_x,
-                                      '[ ]\t' + line)
+                        addstr_wordwrap(stdscr, start_y + offset_y, start_x, '[ ] ' + line)
+                        # stdscr.addstr(start_y + offset_y, start_x,
+                        #               '[ ]\t' + line)
                         offset_y += 2
                 # Если все строки не помещаются на экран
                 else:
@@ -271,7 +315,7 @@ def draw_menu(stdscr, connection_status, user, conn):
 
                     for line in data[interval:interval + max_lines]:
                         stdscr.addstr(start_y + offset_y, start_x,
-                                      '[ ]\t' + line)
+                                      '[ ] ' + line)
                         offset_y += 2
             else:
                     stdscr.addstr(start_y + offset_y, start_x,
@@ -441,6 +485,8 @@ def main():
         dbname = input('Укажите БД: ')
         user = input('Логин: ')
         passwd = input('Пароль: ')
+        if not passwd:
+            passwd = None
 
     # Try to connect to DataBase
     try:
