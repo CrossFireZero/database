@@ -301,9 +301,8 @@ def draw_menu(stdscr, connection_status, user, conn):
                 # Если все строки помещаются на экран за раз
                 if len(data) <= max_lines:
                     for line in data:
-                        addstr_wordwrap(stdscr, start_y + offset_y, start_x, '[ ] ' + line)
-                        # stdscr.addstr(start_y + offset_y, start_x,
-                        #               '[ ]\t' + line)
+                        addstr_wordwrap(stdscr, start_y + offset_y, start_x,
+                                        '[ ] ' + line, curses.A_BOLD)
                         offset_y += 2
                 # Если все строки не помещаются на экран
                 else:
@@ -314,8 +313,8 @@ def draw_menu(stdscr, connection_status, user, conn):
                         interval = printer.current_str - max_lines + 1
 
                     for line in data[interval:interval + max_lines]:
-                        stdscr.addstr(start_y + offset_y, start_x,
-                                      '[ ] ' + line)
+                        addstr_wordwrap(stdscr, start_y + offset_y, start_x,
+                                        '[ ] ' + line, curses.A_BOLD)
                         offset_y += 2
             else:
                     stdscr.addstr(start_y + offset_y, start_x,
