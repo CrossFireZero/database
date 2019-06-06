@@ -292,10 +292,13 @@ def draw_menu(stdscr, connection_status, user, conn):
             data = printer.get_data()
 
         # формируем статус-бар
-        statusbarstr = (connection_status + ' as ' + user + ', position: '
-                        + str(printer.position) + ' current str: '
-                        + str(printer.current_str) + '.  Max lines: '
-                        + str(max_lines) + '. Data: ' + str(len(data)))
+        statusbarstr = (connection_status + ' as ' + user
+                        + ' изделие: ' + printer.pkey
+                        + ' блок: ' + printer.bkey)
+                        # + ', position: '
+                        # + str(printer.position) + ' current str: '
+                        # + str(printer.current_str) + '.  Max lines: '
+                        # + str(max_lines) + '. Data: ' + str(len(data)))
 
         # Заголовок приложения
         title = ' База данных СПО '
