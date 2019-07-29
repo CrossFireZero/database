@@ -1,0 +1,4 @@
+psycopg2==2.8.1
+style==1.1.0
+update==0.0.1
+windows-curses==1.1
